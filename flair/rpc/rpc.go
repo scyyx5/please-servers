@@ -78,6 +78,9 @@ type server struct {
 	timeout                                    time.Duration
 }
 
+// healthServer implements the gRPC health checking protocol. It is a separate
+// struct because the server struct embeds ppb.UnimplementedGCServer which also
+// has a List method, conflicting with hpb.UnimplementedHealthServer.List.
 type healthServer struct {
 	hpb.UnimplementedHealthServer
 	replicator, assetReplicator, exeReplicator *trie.Replicator
@@ -94,10 +97,6 @@ func (s *healthServer) Check(context.Context, *hpb.HealthCheckRequest) (*hpb.Hea
 	}
 	log.Debug("Passed healthcheck, all ranges serving")
 	return &hpb.HealthCheckResponse{Status: hpb.HealthCheckResponse_SERVING}, nil
-}
-
-func (s *healthServer) Watch(*hpb.HealthCheckRequest, hpb.Health_WatchServer) error {
-	return status.Errorf(codes.Unimplemented, "grpc_health_v1.Watch not implemented")
 }
 
 func (s *server) GetCapabilities(ctx context.Context, req *pb.GetCapabilitiesRequest) (*pb.ServerCapabilities, error) {
