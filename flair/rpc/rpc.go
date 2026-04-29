@@ -49,11 +49,6 @@ func ServeForever(opts grpcutil.Opts, casReplicator, assetReplicator, executorRe
 		bytestreamRe:    regexp.MustCompile("(?:uploads/[0-9a-f-]+/)?(blobs|compressed-blobs/zstd)/([0-9a-f]+)/([0-9]+)"),
 		timeout:         timeout,
 	}
-	healthSrv := &healthServer{
-		replicator:      casReplicator,
-		assetReplicator: assetReplicator,
-		exeReplicator:   executorReplicator,
-	}
 	opts.NoHealth = true // We will do this ourselves.
 	lis, s := grpcutil.NewServer(opts)
 	pb.RegisterCapabilitiesServer(s, srv)
@@ -67,23 +62,19 @@ func ServeForever(opts grpcutil.Opts, casReplicator, assetReplicator, executorRe
 		pb.RegisterExecutionServer(s, srv)
 	}
 	ppb.RegisterGCServer(s, srv)
-	hpb.RegisterHealthServer(s, healthSrv)
+	hpb.RegisterHealthServer(s, srv)
 	grpcutil.ServeForever(lis, s)
 }
 
 type server struct {
 	ppb.UnimplementedGCServer
+	hpb.UnimplementedHealthServer
 	replicator, assetReplicator, exeReplicator *trie.Replicator
 	bytestreamRe                               *regexp.Regexp
 	timeout                                    time.Duration
 }
 
-type healthServer struct {
-	hpb.UnimplementedHealthServer
-	replicator, assetReplicator, exeReplicator *trie.Replicator
-}
-
-func (s *healthServer) Check(context.Context, *hpb.HealthCheckRequest) (*hpb.HealthCheckResponse, error) {
+func (s *server) Check(context.Context, *hpb.HealthCheckRequest) (*hpb.HealthCheckResponse, error) {
 	for _, r := range []*trie.Replicator{s.replicator, s.assetReplicator, s.exeReplicator} {
 		if r != nil {
 			if err := r.Healthcheck(); err != nil {
